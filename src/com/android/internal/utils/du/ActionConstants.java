@@ -204,8 +204,8 @@ public class ActionConstants {
 
               + dl(HOME_BUTTON_TAG)
               + dl(SystemAction.Home.mAction)        + dl(SystemAction.Home.mLabelRes)         + dl(EMPTY)
-              + dl(SystemAction.Menu.mAction)        + dl(SystemAction.Menu.mLabelRes)         + dl(EMPTY)
-              + dl(SystemAction.Overview.mAction)    + dl(SystemAction.Overview.mLabelRes)         + dl(EMPTY)
+              + dl(SystemAction.Assistant.mAction)   + dl(SystemAction.Menu.mLabelRes)         + dl(EMPTY)
+              + dl(SystemAction.NoAction.mAction)    + dl(SystemAction.Overview.mLabelRes)     + dl(EMPTY)
 
               + dl(OVERVIEW_BUTTON_TAG)
               + dl(SystemAction.Overview.mAction)    + dl(SystemAction.Overview.mLabelRes)     + dl(EMPTY)
@@ -214,7 +214,7 @@ public class ActionConstants {
 
               + dl(MENU_BUTTON_TAG)
               + dl(SystemAction.Menu.mAction)        + dl(SystemAction.Menu.mLabelRes)         + dl(EMPTY)
-              + dl(SystemAction.NoAction.mAction)    + dl(SystemAction.NoAction.mLabelRes)     + dl(EMPTY)
+              + dl(SystemAction.Overview.mAction)    + dl(SystemAction.NoAction.mLabelRes)     + dl(EMPTY)
               + dl(SystemAction.NoAction.mAction)    + dl(SystemAction.NoAction.mLabelRes)     + dl(EMPTY)
 
               + dl(ASSIST_BUTTON_TAG)
