@@ -39,6 +39,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
+import android.content.ServiceConnection;
 import android.graphics.drawable.Drawable;
 import android.hardware.input.InputManager;
 import android.media.AudioManager;
@@ -48,7 +49,10 @@ import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
+import android.os.Message;
+import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
@@ -64,6 +68,7 @@ import android.util.Slog;
 import android.view.InputDevice;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
+import android.view.WindowManager;
 import android.view.WindowManagerPolicyControl;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Toast;
@@ -135,8 +140,6 @@ public class ActionHandler {
     public static final String SYSTEMUI_TASK_ONE_HANDED_MODE_RIGHT = "task_one_handed_mode_right";
 
     public static final String INTENT_SHOW_POWER_MENU = "action_handler_show_power_menu";
-    public static final String INTENT_SCREENSHOT = "action_handler_screenshot";
-    public static final String INTENT_REGION_SCREENSHOT = "action_handler_region_screenshot";
     public static final String INTENT_TOGGLE_FLASHLIGHT = "action_handler_toggle_flashlight";
 
     static enum SystemAction {
@@ -451,12 +454,12 @@ public class ActionHandler {
             killProcess(context);
             return;
         } else if (action.equals(SYSTEMUI_TASK_SCREENSHOT)) {
-            takeScreenshot(context);
+            takeScreenshot(context, false);
             return;
             // } else if (action.equals(SYSTEMUI_TASK_AUDIORECORD)) {
             // takeAudiorecord();
         } else if (action.equals(SYSTEMUI_TASK_REGION_SCREENSHOT)) {
-            takeRegionScreenshot(context);
+            takeScreenshot(context, true);
             return;
         } else if (action.equals(SYSTEMUI_TASK_EXPANDED_DESKTOP)) {
             toggleExpandedDesktop(context);
@@ -844,14 +847,85 @@ public class ActionHandler {
                 UserHandle.USER_ALL));
     }
 
-    private static void takeScreenshot(Context context) {
-        context.sendBroadcastAsUser(new Intent(INTENT_SCREENSHOT), new UserHandle(
-                UserHandle.USER_ALL));
-    }
+    /**
+     * functions needed for taking screenhots.
+     * This leverages the built in ICS screenshot functionality
+     */
+    final static Object mScreenshotLock = new Object();
+    private static ServiceConnection mScreenshotConnection = null;
+    private static Context mContext;
 
-    private static void takeRegionScreenshot(Context context) {
-        context.sendBroadcastAsUser(new Intent(INTENT_REGION_SCREENSHOT), new UserHandle(
-                UserHandle.USER_ALL));
+    final static Runnable mScreenshotTimeout = new Runnable() {
+        @Override public void run() {
+            synchronized (mScreenshotLock) {
+                if (mContext != null && mScreenshotConnection != null) {
+                    mContext.unbindService(mScreenshotConnection);
+                    mScreenshotConnection = null;
+                }
+            }
+        }
+    };
+
+    private static Handler mHandler = new Handler() {
+        public void handleMessage(Message msg) {
+            synchronized (mScreenshotLock) {
+                if (mContext != null && mScreenshotConnection != null) {
+                    mContext.unbindService(mScreenshotConnection);
+                    mScreenshotConnection = null;
+                    mHandler.removeCallbacks(mScreenshotTimeout);
+                }
+            }
+        }
+    };
+
+    private static void takeScreenshot(Context context, final boolean partial) {
+        mContext = context;
+        synchronized (mScreenshotLock) {
+            if (mScreenshotConnection != null) {
+                return;
+            }
+            ComponentName cn = new ComponentName("com.android.systemui",
+                    "com.android.systemui.screenshot.TakeScreenshotService");
+            Intent intent = new Intent();
+            intent.setComponent(cn);
+            ServiceConnection conn = new ServiceConnection() {
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder service) {
+                    synchronized (mScreenshotLock) {
+                        if (mScreenshotConnection != this) {
+                            return;
+                        }
+                        Messenger messenger = new Messenger(service);
+                        Message msg = Message.obtain(null, 1);
+                        msg.what = partial ? WindowManager.TAKE_SCREENSHOT_SELECTED_REGION
+                                : WindowManager.TAKE_SCREENSHOT_FULLSCREEN;
+                        mScreenshotConnection = this;
+                        msg.replyTo = new Messenger(mHandler);
+                        msg.arg1 = msg.arg2 = 0;
+
+                        /* wait for the dialog box to close */
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ie) {
+                            // Do nothing
+                        }
+
+                        /* take the screenshot */
+                        try {
+                            messenger.send(msg);
+                        } catch (RemoteException e) {
+                            // Do nothing
+                        }
+                    }
+                }
+                @Override
+                public void onServiceDisconnected(ComponentName name) {}
+            };
+            if (mContext != null && mContext.bindService(intent, conn, Context.BIND_AUTO_CREATE)) {
+                mScreenshotConnection = conn;
+                mHandler.postDelayed(mScreenshotTimeout, 10000);
+            }
+        }
     }
 
     private static void killProcess(Context context) {
