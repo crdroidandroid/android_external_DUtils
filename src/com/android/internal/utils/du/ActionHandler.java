@@ -771,14 +771,15 @@ public class ActionHandler {
     }
 
     private static List<String> getCurrentLauncherPackages(Context context) {
-        final Intent launcherIntent = new Intent(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_HOME);
         final PackageManager pm = context.getPackageManager();
         final List<ResolveInfo> homeActivities = new ArrayList<>();
         pm.getHomeActivities(homeActivities);
         final List<String> packageNames = new ArrayList<>();
         for (ResolveInfo info : homeActivities) {
-            packageNames.add(info.activityInfo.packageName);
+            final String name = info.activityInfo.packageName;
+            if (!name.equals("com.android.settings")) {
+                packageNames.add(name);
+            }
         }
         return packageNames;
     }
